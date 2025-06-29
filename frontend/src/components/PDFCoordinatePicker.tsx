@@ -46,6 +46,8 @@ const PDFCoordinatePicker: React.FC<PDFCoordinatePickerProps> = ({
   const [pdfDoc, setPdfDoc] = useState<any>(null)
   const [currentPage, setCurrentPage] = useState(1)
   const [scale, setScale] = useState(1.5)
+  const [isLoading, setIsLoading] = useState(false)
+  const [loadError, setLoadError] = useState<string>('')
 
   const dataFields = [
     { key: 'family_name', label: '姓（英字）' },
@@ -69,44 +71,80 @@ const PDFCoordinatePicker: React.FC<PDFCoordinatePickerProps> = ({
     }
   }, [open, pdfUrl])
 
+  useEffect(() => {
+    if (pdfDoc && currentPage) {
+      renderPage(pdfDoc, currentPage)
+    }
+  }, [currentPage, pdfDoc, scale])
+
   const loadPDF = async () => {
+    setIsLoading(true)
+    setLoadError('')
+    
     try {
       // PDF.jsを動的インポート
       const pdfjsLib = await import('pdfjs-dist')
       
-      // Worker設定
-      pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js`
+      // Worker設定（複数のCDNを試す）
+      try {
+        pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js`
+      } catch (e) {
+        pdfjsLib.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@3.11.174/build/pdf.worker.min.js`
+      }
       
-      const pdf = await pdfjsLib.getDocument(pdfUrl).promise
+      console.log('Loading PDF from:', pdfUrl)
+      const loadingTask = pdfjsLib.getDocument(pdfUrl)
+      const pdf = await loadingTask.promise
+      console.log('PDF loaded successfully, pages:', pdf.numPages)
+      
       setPdfDoc(pdf)
-      renderPage(pdf, currentPage)
+      await renderPage(pdf, currentPage)
+      setIsLoading(false)
     } catch (error) {
       console.error('PDF loading failed:', error)
+      setLoadError(`PDF読み込みエラー: ${error.message}`)
+      setIsLoading(false)
     }
   }
 
   const renderPage = async (pdf: any, pageNum: number) => {
     try {
+      console.log(`Rendering page ${pageNum}...`)
       const page = await pdf.getPage(pageNum)
       const viewport = page.getViewport({ scale })
       
       const canvas = canvasRef.current
-      if (!canvas) return
+      if (!canvas) {
+        console.error('Canvas ref not found')
+        return
+      }
       
       const context = canvas.getContext('2d')
-      if (!context) return
+      if (!context) {
+        console.error('Canvas context not found')
+        return
+      }
       
+      // キャンバスサイズを設定
       canvas.height = viewport.height
       canvas.width = viewport.width
+      canvas.style.width = `${viewport.width}px`
+      canvas.style.height = `${viewport.height}px`
+      
+      // 既存の描画をクリア
+      context.clearRect(0, 0, canvas.width, canvas.height)
       
       const renderContext = {
         canvasContext: context,
         viewport: viewport
       }
       
+      console.log('Starting page render...')
       await page.render(renderContext).promise
+      console.log('Page rendered successfully')
     } catch (error) {
       console.error('Page rendering failed:', error)
+      alert(`ページ描画エラー: ${error.message}`)
     }
   }
 
@@ -210,15 +248,36 @@ const fillPdfWithCoordinates = async (data, pdfBytes) => {
                   </Button>
                 </Box>
               </Box>
-              <canvas
-                ref={canvasRef}
-                onClick={handleCanvasClick}
-                style={{ 
-                  border: '1px solid #ddd', 
-                  cursor: 'crosshair',
-                  maxWidth: '100%'
-                }}
-              />
+              {isLoading && (
+                <Box display="flex" justifyContent="center" alignItems="center" height="400px">
+                  <Typography>PDF読み込み中...</Typography>
+                </Box>
+              )}
+              
+              {loadError && (
+                <Alert severity="error" sx={{ mb: 2 }}>
+                  {loadError}
+                </Alert>
+              )}
+              
+              {!isLoading && !loadError && (
+                <canvas
+                  ref={canvasRef}
+                  onClick={handleCanvasClick}
+                  style={{ 
+                    border: '1px solid #ddd', 
+                    cursor: 'crosshair',
+                    maxWidth: '100%',
+                    display: pdfDoc ? 'block' : 'none'
+                  }}
+                />
+              )}
+              
+              {!isLoading && !loadError && !pdfDoc && (
+                <Box display="flex" justifyContent="center" alignItems="center" height="400px">
+                  <Typography>PDFが読み込まれていません</Typography>
+                </Box>
+              )}
             </Paper>
           </Grid>
 
