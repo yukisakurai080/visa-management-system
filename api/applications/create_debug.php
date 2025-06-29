@@ -25,10 +25,15 @@ try {
     echo json_encode([
         'debug' => true,
         'received_data' => $data,
+        'raw_data' => $rawData,
         'raw_data_length' => strlen($rawData),
         'database_connected' => ($db !== null),
         'php_version' => phpversion(),
-        'method' => $_SERVER['REQUEST_METHOD']
+        'method' => $_SERVER['REQUEST_METHOD'],
+        'content_type' => $_SERVER['CONTENT_TYPE'] ?? 'not set',
+        'content_length' => $_SERVER['CONTENT_LENGTH'] ?? 'not set',
+        'headers' => getallheaders(),
+        'json_last_error' => json_last_error_msg()
     ]);
 
 } catch (Exception $e) {

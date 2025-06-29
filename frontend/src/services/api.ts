@@ -24,7 +24,7 @@ export const api = {
   createApplication: async (data: ShortStayApplication) => {
     console.log('API sending data:', data);
     
-    const response = await fetch(`${API_BASE_URL}/applications/create_debug.php`, {
+    const response = await fetch(`${API_BASE_URL}/applications/create_fixed.php`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
