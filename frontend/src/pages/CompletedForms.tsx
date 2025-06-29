@@ -54,7 +54,9 @@ import {
   AccountBalance as PermanentIcon,
   AdminPanelSettings as AdminIcon,
   Edit as EditIcon,
+  Settings as SettingsIcon,
 } from '@mui/icons-material'
+import PDFCoordinatePicker from '../components/PDFCoordinatePicker'
 
 interface CompletedForm {
   id: number
@@ -99,6 +101,8 @@ const CompletedForms = () => {
   const [editDialog, setEditDialog] = useState(false)
   const [editFormData, setEditFormData] = useState<any>(null)
   const [filledPdfUrl, setFilledPdfUrl] = useState<string>('')
+  const [coordinatePickerOpen, setCoordinatePickerOpen] = useState(false)
+  const [pdfCoordinates, setPdfCoordinates] = useState<any[]>([])
 
   // 手続き・カテゴリのマスターデータ
   const procedureTypes: ProcedureType[] = [
@@ -1220,13 +1224,24 @@ const CompletedForms = () => {
                       <Typography variant="h6" color="primary">
                         申請書テンプレート（PDF）
                       </Typography>
-                      <Button 
-                        variant="outlined" 
-                        size="small"
-                        onClick={() => fillPdfWithData(editFormData)}
-                      >
-                        PDF更新
-                      </Button>
+                      <Box>
+                        <Button 
+                          variant="outlined" 
+                          size="small"
+                          startIcon={<SettingsIcon />}
+                          onClick={() => setCoordinatePickerOpen(true)}
+                          sx={{ mr: 1 }}
+                        >
+                          座標設定
+                        </Button>
+                        <Button 
+                          variant="outlined" 
+                          size="small"
+                          onClick={() => fillPdfWithData(editFormData)}
+                        >
+                          PDF更新
+                        </Button>
+                      </Box>
                     </Box>
                     <Box 
                       sx={{ 
@@ -1438,6 +1453,17 @@ const CompletedForms = () => {
           </Button>
         </DialogActions>
       </Dialog>
+
+      {/* PDF座標ピッカー */}
+      <PDFCoordinatePicker
+        open={coordinatePickerOpen}
+        onClose={() => setCoordinatePickerOpen(false)}
+        pdfUrl="/documents/short-stay-application-form.pdf"
+        onSaveCoordinates={(coordinates) => {
+          setPdfCoordinates(coordinates)
+          console.log('Saved coordinates:', coordinates)
+        }}
+      />
     </Box>
   )
 }
