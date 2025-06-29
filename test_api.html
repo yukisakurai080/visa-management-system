@@ -11,7 +11,7 @@
     <script>
         async function testAPI() {
             const testData = {
-                formId: "test-123",
+                formId: "test-" + Date.now(),
                 applicationType: "family-visit",
                 familyName: "田中",
                 givenName: "太郎",
@@ -31,7 +31,7 @@
             try {
                 console.log('Sending:', testData);
                 
-                const response = await fetch('https://office-tree.jp/api/direct_test.php', {
+                const response = await fetch('https://office-tree.jp/api/applications/create_fixed.php', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',

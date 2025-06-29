@@ -93,6 +93,8 @@ const CompletedForms = () => {
   const [moveStep, setMoveStep] = useState(0)
   const [selectedProcedure, setSelectedProcedure] = useState<string>('')
   const [selectedCategory, setSelectedCategory] = useState<string>('')
+  const [detailDialog, setDetailDialog] = useState(false)
+  const [selectedFormDetail, setSelectedFormDetail] = useState<any>(null)
 
   // 手続き・カテゴリのマスターデータ
   const procedureTypes: ProcedureType[] = [
@@ -297,6 +299,25 @@ const CompletedForms = () => {
     setSelectedProcedure('')
   }
 
+  // 詳細表示のハンドラー
+  const handleViewDetail = async (formId: number) => {
+    try {
+      const result = await api.getApplicationDetail(formId)
+      if (result.success) {
+        setSelectedFormDetail(result.data)
+        setDetailDialog(true)
+      }
+    } catch (error) {
+      console.error('Failed to fetch detail:', error)
+      alert('詳細情報の取得に失敗しました')
+    }
+  }
+
+  const handleDetailClose = () => {
+    setDetailDialog(false)
+    setSelectedFormDetail(null)
+  }
+
   const getStatusInfo = (status: string) => {
     switch (status) {
       case 'completed':
@@ -438,7 +459,11 @@ const CompletedForms = () => {
       width: 150,
       renderCell: (params) => (
         <Box display="flex" gap={0.5}>
-          <IconButton size="small" title="詳細表示">
+          <IconButton 
+            size="small" 
+            title="詳細表示"
+            onClick={() => handleViewDetail(params.row.id)}
+          >
             <ViewIcon />
           </IconButton>
           <IconButton size="small" title="ダウンロード">
@@ -746,6 +771,141 @@ const CompletedForms = () => {
             startIcon={<DeleteIcon />}
           >
             削除実行
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* 詳細表示ダイアログ */}
+      <Dialog open={detailDialog} onClose={handleDetailClose} maxWidth="md" fullWidth>
+        <DialogTitle>
+          <Box display="flex" alignItems="center" gap={2}>
+            <ViewIcon color="primary" />
+            申請内容詳細
+          </Box>
+        </DialogTitle>
+        <DialogContent>
+          {selectedFormDetail && (
+            <Box>
+              {/* 基本情報 */}
+              <Card sx={{ mb: 2 }}>
+                <CardContent>
+                  <Typography variant="h6" gutterBottom color="primary">
+                    申請者基本情報
+                  </Typography>
+                  <Grid container spacing={2}>
+                    <Grid item xs={6}>
+                      <Typography variant="body2" color="text.secondary">フォームID</Typography>
+                      <Typography variant="body1">{selectedFormDetail.form_id}</Typography>
+                    </Grid>
+                    <Grid item xs={6}>
+                      <Typography variant="body2" color="text.secondary">申請タイプ</Typography>
+                      <Typography variant="body1">{getVisaTypeLabel(selectedFormDetail.application_type)}</Typography>
+                    </Grid>
+                    <Grid item xs={6}>
+                      <Typography variant="body2" color="text.secondary">氏名（英字）</Typography>
+                      <Typography variant="body1">
+                        {selectedFormDetail.family_name} {selectedFormDetail.given_name}
+                      </Typography>
+                    </Grid>
+                    <Grid item xs={6}>
+                      <Typography variant="body2" color="text.secondary">氏名（カタカナ）</Typography>
+                      <Typography variant="body1">
+                        {selectedFormDetail.family_name_kana} {selectedFormDetail.given_name_kana}
+                      </Typography>
+                    </Grid>
+                    <Grid item xs={6}>
+                      <Typography variant="body2" color="text.secondary">性別</Typography>
+                      <Typography variant="body1">{selectedFormDetail.gender || '-'}</Typography>
+                    </Grid>
+                    <Grid item xs={6}>
+                      <Typography variant="body2" color="text.secondary">生年月日</Typography>
+                      <Typography variant="body1">{selectedFormDetail.date_of_birth || '-'}</Typography>
+                    </Grid>
+                    <Grid item xs={6}>
+                      <Typography variant="body2" color="text.secondary">国籍</Typography>
+                      <Typography variant="body1">{selectedFormDetail.nationality || '-'}</Typography>
+                    </Grid>
+                    <Grid item xs={6}>
+                      <Typography variant="body2" color="text.secondary">パスポート番号</Typography>
+                      <Typography variant="body1">{selectedFormDetail.passport_number || '-'}</Typography>
+                    </Grid>
+                  </Grid>
+                </CardContent>
+              </Card>
+
+              {/* 連絡先情報 */}
+              <Card sx={{ mb: 2 }}>
+                <CardContent>
+                  <Typography variant="h6" gutterBottom color="primary">
+                    連絡先情報
+                  </Typography>
+                  <Grid container spacing={2}>
+                    <Grid item xs={6}>
+                      <Typography variant="body2" color="text.secondary">メールアドレス</Typography>
+                      <Typography variant="body1">{selectedFormDetail.email || '-'}</Typography>
+                    </Grid>
+                    <Grid item xs={6}>
+                      <Typography variant="body2" color="text.secondary">電話番号</Typography>
+                      <Typography variant="body1">{selectedFormDetail.phone_number || '-'}</Typography>
+                    </Grid>
+                  </Grid>
+                </CardContent>
+              </Card>
+
+              {/* 渡航情報 */}
+              <Card sx={{ mb: 2 }}>
+                <CardContent>
+                  <Typography variant="h6" gutterBottom color="primary">
+                    渡航情報
+                  </Typography>
+                  <Grid container spacing={2}>
+                    <Grid item xs={12}>
+                      <Typography variant="body2" color="text.secondary">訪問目的</Typography>
+                      <Typography variant="body1">{selectedFormDetail.purpose_of_visit || '-'}</Typography>
+                    </Grid>
+                    <Grid item xs={6}>
+                      <Typography variant="body2" color="text.secondary">入国予定日</Typography>
+                      <Typography variant="body1">{selectedFormDetail.intended_arrival_date || '-'}</Typography>
+                    </Grid>
+                    <Grid item xs={6}>
+                      <Typography variant="body2" color="text.secondary">出国予定日</Typography>
+                      <Typography variant="body1">{selectedFormDetail.intended_departure_date || '-'}</Typography>
+                    </Grid>
+                  </Grid>
+                </CardContent>
+              </Card>
+
+              {/* システム情報 */}
+              <Card>
+                <CardContent>
+                  <Typography variant="h6" gutterBottom color="primary">
+                    システム情報
+                  </Typography>
+                  <Grid container spacing={2}>
+                    <Grid item xs={6}>
+                      <Typography variant="body2" color="text.secondary">申請日時</Typography>
+                      <Typography variant="body1">
+                        {new Date(selectedFormDetail.created_at).toLocaleString('ja-JP')}
+                      </Typography>
+                    </Grid>
+                    <Grid item xs={6}>
+                      <Typography variant="body2" color="text.secondary">ステータス</Typography>
+                      <Chip 
+                        label={getStatusInfo(selectedFormDetail.status).label}
+                        color={getStatusInfo(selectedFormDetail.status).color}
+                        size="small"
+                      />
+                    </Grid>
+                  </Grid>
+                </CardContent>
+              </Card>
+            </Box>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleDetailClose}>閉じる</Button>
+          <Button variant="contained" startIcon={<DownloadIcon />}>
+            PDF出力
           </Button>
         </DialogActions>
       </Dialog>

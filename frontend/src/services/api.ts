@@ -49,10 +49,21 @@ export const api = {
 
   // 申請一覧を取得
   getApplications: async () => {
-    const response = await fetch(`${API_BASE_URL}/applications/list.php`);
+    const response = await fetch(`${API_BASE_URL}/applications/list_fixed.php`);
     
     if (!response.ok) {
       throw new Error('Failed to fetch applications');
+    }
+    
+    return response.json();
+  },
+
+  // 申請詳細を取得
+  getApplicationDetail: async (id: number) => {
+    const response = await fetch(`${API_BASE_URL}/applications/detail.php?id=${id}`);
+    
+    if (!response.ok) {
+      throw new Error('Failed to fetch application detail');
     }
     
     return response.json();
