@@ -453,7 +453,7 @@ const CompletedForms = () => {
     return mapping
   }
 
-  // PDFに自動入力する関数
+  // PDFに自動入力する関数（座標ベース）
   const fillPdfWithData = async (data: any) => {
     try {
       // PDF-libを動的インポート
@@ -464,65 +464,46 @@ const CompletedForms = () => {
       
       // PDFドキュメントを読み込み
       const pdfDoc = await PDFDocument.load(existingPdfBytes)
-      const form = pdfDoc.getForm()
       
-      // フォームフィールドに値を設定
-      try {
-        // 基本情報
+      // 座標が設定されている場合は座標ベースで描画
+      if (pdfCoordinates.length > 0) {
+        pdfCoordinates.forEach(coord => {
+          const value = data[coord.dataField]
+          if (value) {
+            const page = pdfDoc.getPage(coord.page - 1)
+            page.drawText(String(value), {
+              x: coord.x,
+              y: coord.y,
+              size: 10,
+              color: rgb(0, 0, 0),
+            })
+          }
+        })
+      } else {
+        // 座標が未設定の場合はサンプル座標で描画（仮）
+        const firstPage = pdfDoc.getPage(0)
+        
+        // サンプル座標（実際の位置は座標ピッカーで設定してください）
         if (data.family_name) {
-          const familyNameField = form.getTextField('family_name')
-          familyNameField.setText(data.family_name)
+          firstPage.drawText(String(data.family_name), {
+            x: 100, y: 700, size: 10, color: rgb(0, 0, 0)
+          })
         }
         if (data.given_name) {
-          const givenNameField = form.getTextField('given_name')
-          givenNameField.setText(data.given_name)
-        }
-        if (data.family_name_kana) {
-          const familyNameKanaField = form.getTextField('family_name_kana')
-          familyNameKanaField.setText(data.family_name_kana)
-        }
-        if (data.given_name_kana) {
-          const givenNameKanaField = form.getTextField('given_name_kana')
-          givenNameKanaField.setText(data.given_name_kana)
-        }
-        if (data.gender) {
-          const genderField = form.getTextField('gender')
-          genderField.setText(data.gender)
-        }
-        if (data.date_of_birth) {
-          const dobField = form.getTextField('date_of_birth')
-          dobField.setText(data.date_of_birth)
+          firstPage.drawText(String(data.given_name), {
+            x: 250, y: 700, size: 10, color: rgb(0, 0, 0)
+          })
         }
         if (data.nationality) {
-          const nationalityField = form.getTextField('nationality')
-          nationalityField.setText(data.nationality)
+          firstPage.drawText(String(data.nationality), {
+            x: 100, y: 650, size: 10, color: rgb(0, 0, 0)
+          })
         }
         if (data.passport_number) {
-          const passportField = form.getTextField('passport_number')
-          passportField.setText(data.passport_number)
+          firstPage.drawText(String(data.passport_number), {
+            x: 100, y: 600, size: 10, color: rgb(0, 0, 0)
+          })
         }
-        if (data.email) {
-          const emailField = form.getTextField('email')
-          emailField.setText(data.email)
-        }
-        if (data.phone_number) {
-          const phoneField = form.getTextField('phone_number')
-          phoneField.setText(data.phone_number)
-        }
-        if (data.purpose_of_visit) {
-          const purposeField = form.getTextField('purpose_of_visit')
-          purposeField.setText(data.purpose_of_visit)
-        }
-        if (data.intended_arrival_date) {
-          const arrivalField = form.getTextField('intended_arrival_date')
-          arrivalField.setText(data.intended_arrival_date)
-        }
-        if (data.intended_departure_date) {
-          const departureField = form.getTextField('intended_departure_date')
-          departureField.setText(data.intended_departure_date)
-        }
-      } catch (fieldError) {
-        console.log('Some form fields not found, continuing with available fields:', fieldError)
       }
       
       // PDFを保存
