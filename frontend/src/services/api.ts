@@ -68,4 +68,21 @@ export const api = {
     
     return response.json();
   },
+
+  // 申請を更新
+  updateApplication: async (id: number, data: any) => {
+    const response = await fetch(`${API_BASE_URL}/applications/update.php`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ id, ...data }),
+    });
+    
+    if (!response.ok) {
+      throw new Error('Failed to update application');
+    }
+    
+    return response.json();
+  },
 };

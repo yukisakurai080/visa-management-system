@@ -53,6 +53,7 @@ import {
   Engineering as EngineeringIcon,
   AccountBalance as PermanentIcon,
   AdminPanelSettings as AdminIcon,
+  Edit as EditIcon,
 } from '@mui/icons-material'
 
 interface CompletedForm {
@@ -95,6 +96,8 @@ const CompletedForms = () => {
   const [selectedCategory, setSelectedCategory] = useState<string>('')
   const [detailDialog, setDetailDialog] = useState(false)
   const [selectedFormDetail, setSelectedFormDetail] = useState<any>(null)
+  const [editDialog, setEditDialog] = useState(false)
+  const [editFormData, setEditFormData] = useState<any>(null)
 
   // 手続き・カテゴリのマスターデータ
   const procedureTypes: ProcedureType[] = [
@@ -318,6 +321,76 @@ const CompletedForms = () => {
     setSelectedFormDetail(null)
   }
 
+  // 編集のハンドラー
+  const handleEditClick = async (formId: number) => {
+    try {
+      const result = await api.getApplicationDetail(formId)
+      if (result.success) {
+        setEditFormData(result.data)
+        setEditDialog(true)
+      }
+    } catch (error) {
+      console.error('Failed to fetch edit data:', error)
+      alert('編集データの取得に失敗しました')
+    }
+  }
+
+  const handleEditClose = () => {
+    setEditDialog(false)
+    setEditFormData(null)
+  }
+
+  const handleFormDataUpdate = (field: string, value: string) => {
+    setEditFormData((prev: any) => ({
+      ...prev,
+      [field]: value
+    }))
+  }
+
+  const handleSaveEdit = async () => {
+    try {
+      if (!editFormData) return
+      
+      // バリデーション
+      if (!editFormData.family_name || !editFormData.given_name) {
+        alert('姓名は必須項目です')
+        return
+      }
+      
+      if (!editFormData.email) {
+        alert('メールアドレスは必須項目です')
+        return
+      }
+      
+      const result = await api.updateApplication(editFormData.id, editFormData)
+      if (result.success) {
+        alert('申請内容を更新しました')
+        setEditDialog(false)
+        setEditFormData(null)
+        // データを再取得
+        const updatedResult = await api.getApplications()
+        if (updatedResult.success && updatedResult.data) {
+          const formattedData = updatedResult.data.map((item: any) => ({
+            id: item.id,
+            formId: item.form_id,
+            applicantName: `${item.family_name} ${item.given_name}`,
+            applicantNameKana: `${item.family_name_kana || ''} ${item.given_name_kana || ''}`.trim(),
+            visaType: getVisaTypeLabel(item.application_type),
+            procedureType: 'ビザ申請書',
+            submittedDate: new Date(item.created_at).toLocaleDateString('ja-JP'),
+            status: item.status || 'completed',
+            nationality: item.nationality || '',
+            email: item.email || '',
+          }))
+          setCompletedForms(formattedData)
+        }
+      }
+    } catch (error) {
+      console.error('Failed to save edit:', error)
+      alert('保存に失敗しました')
+    }
+  }
+
   const getStatusInfo = (status: string) => {
     switch (status) {
       case 'completed':
@@ -465,6 +538,13 @@ const CompletedForms = () => {
             onClick={() => handleViewDetail(params.row.id)}
           >
             <ViewIcon />
+          </IconButton>
+          <IconButton 
+            size="small" 
+            title="編集"
+            onClick={() => handleEditClick(params.row.id)}
+          >
+            <EditIcon />
           </IconButton>
           <IconButton size="small" title="ダウンロード">
             <DownloadIcon />
@@ -906,6 +986,232 @@ const CompletedForms = () => {
           <Button onClick={handleDetailClose}>閉じる</Button>
           <Button variant="contained" startIcon={<DownloadIcon />}>
             PDF出力
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* 編集ダイアログ */}
+      <Dialog open={editDialog} onClose={handleEditClose} maxWidth="lg" fullWidth>
+        <DialogTitle>
+          <Box display="flex" alignItems="center" gap={2}>
+            <EditIcon color="primary" />
+            申請書編集 - {editFormData?.application_type ? getVisaTypeLabel(editFormData.application_type) : ''}
+          </Box>
+        </DialogTitle>
+        <DialogContent>
+          {editFormData && (
+            <Grid container spacing={3}>
+              {/* PDF表示部分 */}
+              <Grid item xs={12} md={6}>
+                <Card>
+                  <CardContent>
+                    <Typography variant="h6" gutterBottom color="primary">
+                      申請書テンプレート（PDF）
+                    </Typography>
+                    <Box 
+                      sx={{ 
+                        width: '100%', 
+                        height: '600px', 
+                        border: '1px solid #ddd',
+                        borderRadius: 1,
+                        overflow: 'hidden'
+                      }}
+                    >
+                      <iframe
+                        src="/documents/short-stay-application-form.pdf"
+                        width="100%"
+                        height="100%"
+                        style={{ border: 'none' }}
+                        title="短期滞在申請書"
+                      />
+                    </Box>
+                  </CardContent>
+                </Card>
+              </Grid>
+
+              {/* 編集フォーム部分 */}
+              <Grid item xs={12} md={6}>
+                <Card>
+                  <CardContent>
+                    <Typography variant="h6" gutterBottom color="primary">
+                      申請内容編集
+                    </Typography>
+                    
+                    {/* 基本情報セクション */}
+                    <Box sx={{ mb: 3 }}>
+                      <Typography variant="subtitle1" gutterBottom sx={{ fontWeight: 'bold' }}>
+                        基本情報
+                      </Typography>
+                      <Grid container spacing={2}>
+                        <Grid item xs={6}>
+                          <TextField
+                            fullWidth
+                            label="姓（英字）"
+                            value={editFormData.family_name || ''}
+                            onChange={(e) => handleFormDataUpdate('family_name', e.target.value)}
+                            size="small"
+                          />
+                        </Grid>
+                        <Grid item xs={6}>
+                          <TextField
+                            fullWidth
+                            label="名（英字）"
+                            value={editFormData.given_name || ''}
+                            onChange={(e) => handleFormDataUpdate('given_name', e.target.value)}
+                            size="small"
+                          />
+                        </Grid>
+                        <Grid item xs={6}>
+                          <TextField
+                            fullWidth
+                            label="姓（カタカナ）"
+                            value={editFormData.family_name_kana || ''}
+                            onChange={(e) => handleFormDataUpdate('family_name_kana', e.target.value)}
+                            size="small"
+                          />
+                        </Grid>
+                        <Grid item xs={6}>
+                          <TextField
+                            fullWidth
+                            label="名（カタカナ）"
+                            value={editFormData.given_name_kana || ''}
+                            onChange={(e) => handleFormDataUpdate('given_name_kana', e.target.value)}
+                            size="small"
+                          />
+                        </Grid>
+                        <Grid item xs={6}>
+                          <FormControl fullWidth size="small">
+                            <InputLabel>性別</InputLabel>
+                            <Select
+                              value={editFormData.gender || ''}
+                              onChange={(e) => handleFormDataUpdate('gender', e.target.value)}
+                              label="性別"
+                            >
+                              <MenuItem value="男性">男性</MenuItem>
+                              <MenuItem value="女性">女性</MenuItem>
+                            </Select>
+                          </FormControl>
+                        </Grid>
+                        <Grid item xs={6}>
+                          <TextField
+                            fullWidth
+                            label="生年月日"
+                            type="date"
+                            value={editFormData.date_of_birth || ''}
+                            onChange={(e) => handleFormDataUpdate('date_of_birth', e.target.value)}
+                            size="small"
+                            InputLabelProps={{ shrink: true }}
+                          />
+                        </Grid>
+                        <Grid item xs={6}>
+                          <TextField
+                            fullWidth
+                            label="国籍"
+                            value={editFormData.nationality || ''}
+                            onChange={(e) => handleFormDataUpdate('nationality', e.target.value)}
+                            size="small"
+                          />
+                        </Grid>
+                        <Grid item xs={6}>
+                          <TextField
+                            fullWidth
+                            label="パスポート番号"
+                            value={editFormData.passport_number || ''}
+                            onChange={(e) => handleFormDataUpdate('passport_number', e.target.value)}
+                            size="small"
+                          />
+                        </Grid>
+                      </Grid>
+                    </Box>
+
+                    <Divider sx={{ my: 2 }} />
+
+                    {/* 連絡先情報セクション */}
+                    <Box sx={{ mb: 3 }}>
+                      <Typography variant="subtitle1" gutterBottom sx={{ fontWeight: 'bold' }}>
+                        連絡先情報
+                      </Typography>
+                      <Grid container spacing={2}>
+                        <Grid item xs={12}>
+                          <TextField
+                            fullWidth
+                            label="メールアドレス"
+                            type="email"
+                            value={editFormData.email || ''}
+                            onChange={(e) => handleFormDataUpdate('email', e.target.value)}
+                            size="small"
+                          />
+                        </Grid>
+                        <Grid item xs={12}>
+                          <TextField
+                            fullWidth
+                            label="電話番号"
+                            value={editFormData.phone_number || ''}
+                            onChange={(e) => handleFormDataUpdate('phone_number', e.target.value)}
+                            size="small"
+                          />
+                        </Grid>
+                      </Grid>
+                    </Box>
+
+                    <Divider sx={{ my: 2 }} />
+
+                    {/* 渡航情報セクション */}
+                    <Box sx={{ mb: 3 }}>
+                      <Typography variant="subtitle1" gutterBottom sx={{ fontWeight: 'bold' }}>
+                        渡航情報
+                      </Typography>
+                      <Grid container spacing={2}>
+                        <Grid item xs={12}>
+                          <TextField
+                            fullWidth
+                            label="訪問目的"
+                            multiline
+                            rows={2}
+                            value={editFormData.purpose_of_visit || ''}
+                            onChange={(e) => handleFormDataUpdate('purpose_of_visit', e.target.value)}
+                            size="small"
+                          />
+                        </Grid>
+                        <Grid item xs={6}>
+                          <TextField
+                            fullWidth
+                            label="入国予定日"
+                            type="date"
+                            value={editFormData.intended_arrival_date || ''}
+                            onChange={(e) => handleFormDataUpdate('intended_arrival_date', e.target.value)}
+                            size="small"
+                            InputLabelProps={{ shrink: true }}
+                          />
+                        </Grid>
+                        <Grid item xs={6}>
+                          <TextField
+                            fullWidth
+                            label="出国予定日"
+                            type="date"
+                            value={editFormData.intended_departure_date || ''}
+                            onChange={(e) => handleFormDataUpdate('intended_departure_date', e.target.value)}
+                            size="small"
+                            InputLabelProps={{ shrink: true }}
+                          />
+                        </Grid>
+                      </Grid>
+                    </Box>
+
+                    <Alert severity="info" sx={{ mt: 2 }}>
+                      左のPDFと照らし合わせながら、必要な項目を編集してください。
+                      変更内容は「保存」ボタンを押すまで確定されません。
+                    </Alert>
+                  </CardContent>
+                </Card>
+              </Grid>
+            </Grid>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleEditClose}>キャンセル</Button>
+          <Button variant="contained" color="primary" startIcon={<EditIcon />} onClick={handleSaveEdit}>
+            保存
           </Button>
         </DialogActions>
       </Dialog>
