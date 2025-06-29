@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react'
+import { Document, Page } from 'react-pdf'
 import {
   Dialog,
   DialogTitle,
@@ -48,6 +49,8 @@ const PDFCoordinatePicker: React.FC<PDFCoordinatePickerProps> = ({
   const [scale, setScale] = useState(1.5)
   const [isLoading, setIsLoading] = useState(false)
   const [loadError, setLoadError] = useState<string>('')
+  const [useReactPdf, setUseReactPdf] = useState(false)
+  const [numPages, setNumPages] = useState<number>(0)
 
   const dataFields = [
     { key: 'family_name', label: '姓（英字）' },
@@ -66,10 +69,10 @@ const PDFCoordinatePicker: React.FC<PDFCoordinatePickerProps> = ({
   ]
 
   useEffect(() => {
-    if (open && pdfUrl) {
+    if (open && pdfUrl && !useReactPdf) {
       loadPDF()
     }
-  }, [open, pdfUrl])
+  }, [open, pdfUrl, useReactPdf])
 
   useEffect(() => {
     if (pdfDoc && currentPage) {
@@ -85,16 +88,35 @@ const PDFCoordinatePicker: React.FC<PDFCoordinatePickerProps> = ({
       // PDF.jsを動的インポート
       const pdfjsLib = await import('pdfjs-dist')
       
-      // Worker設定（バージョン5.3.31に合わせる）
+      // Worker設定（複数の方法を試行）
       if (!pdfjsLib.GlobalWorkerOptions.workerSrc) {
-        // 最新バージョンのWorkerを使用
-        pdfjsLib.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@5.3.31/build/pdf.worker.min.js`
-        console.log('PDF.js version:', pdfjsLib.version || '5.3.31')
-        console.log('Worker source:', pdfjsLib.GlobalWorkerOptions.workerSrc)
+        try {
+          // 方法1: JSDelivr CDN
+          pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdn.jsdelivr.net/npm/pdfjs-dist@5.3.31/build/pdf.worker.min.js`
+          console.log('Worker source (JSDelivr):', pdfjsLib.GlobalWorkerOptions.workerSrc)
+        } catch (e) {
+          try {
+            // 方法2: CDNJSから取得
+            pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.0.379/pdf.worker.min.js`
+            console.log('Worker source (CDNJS):', pdfjsLib.GlobalWorkerOptions.workerSrc)
+          } catch (e2) {
+            // 方法3: Workerを無効にして軽量モードで動作
+            console.warn('Worker loading failed, using main thread')
+            pdfjsLib.GlobalWorkerOptions.workerSrc = ''
+          }
+        }
       }
       
       console.log('Loading PDF from:', pdfUrl)
-      const loadingTask = pdfjsLib.getDocument(pdfUrl)
+      
+      // PDF読み込み設定（Workerエラー回避）
+      const loadingTask = pdfjsLib.getDocument({
+        url: pdfUrl,
+        // Workerが使用できない場合の設定
+        disableWorker: false,
+        verbosity: 0, // ログレベルを下げる
+      })
+      
       const pdf = await loadingTask.promise
       console.log('PDF loaded successfully, pages:', pdf.numPages)
       
@@ -105,7 +127,25 @@ const PDFCoordinatePicker: React.FC<PDFCoordinatePickerProps> = ({
       console.error('PDF loading failed:', error)
       setLoadError(`PDF読み込みエラー: ${error.message}`)
       setIsLoading(false)
+      
+      // フォールバック: React-PDFを使用
+      console.log('Falling back to React-PDF...')
+      setUseReactPdf(true)
     }
+  }
+
+  // React-PDF用のハンドラー
+  const onDocumentLoadSuccess = ({ numPages }: { numPages: number }) => {
+    setNumPages(numPages)
+    setIsLoading(false)
+    setLoadError('')
+    console.log('React-PDF loaded successfully, pages:', numPages)
+  }
+
+  const onDocumentLoadError = (error: any) => {
+    console.error('React-PDF loading failed:', error)
+    setLoadError(`React-PDF読み込みエラー: ${error.message}`)
+    setIsLoading(false)
   }
 
   const renderPage = async (pdf: any, pageNum: number) => {
@@ -161,6 +201,30 @@ const PDFCoordinatePicker: React.FC<PDFCoordinatePickerProps> = ({
     const rect = canvas.getBoundingClientRect()
     const x = (event.clientX - rect.left) / scale
     const y = (event.clientY - rect.top) / scale
+
+    const newCoordinate: Coordinate = {
+      id: `${currentDataField}_${Date.now()}`,
+      fieldName: currentField,
+      x: Math.round(x),
+      y: Math.round(y),
+      page: currentPage,
+      dataField: currentDataField
+    }
+
+    setCoordinates(prev => [...prev, newCoordinate])
+    setCurrentField('')
+  }
+
+  // React-PDF用のクリックハンドラー
+  const handleReactPdfClick = (event: React.MouseEvent<HTMLDivElement>) => {
+    if (!currentField || !currentDataField) {
+      alert('フィールド名とデータフィールドを選択してください')
+      return
+    }
+
+    const rect = event.currentTarget.getBoundingClientRect()
+    const x = (event.clientX - rect.left)
+    const y = (event.clientY - rect.top)
 
     const newCoordinate: Coordinate = {
       id: `${currentDataField}_${Date.now()}`,
@@ -243,7 +307,7 @@ const fillPdfWithCoordinates = async (data, pdfBytes) => {
                   <Chip label={`${currentPage}ページ`} sx={{ mx: 1 }} />
                   <Button 
                     onClick={() => setCurrentPage(currentPage + 1)}
-                    disabled={!pdfDoc || currentPage >= pdfDoc.numPages}
+                    disabled={(!pdfDoc || currentPage >= pdfDoc.numPages) && (!useReactPdf || currentPage >= numPages)}
                   >
                     次ページ
                   </Button>
@@ -261,7 +325,7 @@ const fillPdfWithCoordinates = async (data, pdfBytes) => {
                 </Alert>
               )}
               
-              {!isLoading && !loadError && (
+              {!isLoading && !loadError && !useReactPdf && (
                 <canvas
                   ref={canvasRef}
                   onClick={handleCanvasClick}
@@ -273,8 +337,31 @@ const fillPdfWithCoordinates = async (data, pdfBytes) => {
                   }}
                 />
               )}
+
+              {!isLoading && !loadError && useReactPdf && (
+                <div
+                  onClick={handleReactPdfClick}
+                  style={{
+                    border: '1px solid #ddd',
+                    cursor: 'crosshair',
+                    maxWidth: '100%'
+                  }}
+                >
+                  <Document
+                    file={pdfUrl}
+                    onLoadSuccess={onDocumentLoadSuccess}
+                    onLoadError={onDocumentLoadError}
+                    loading={<div>React-PDF読み込み中...</div>}
+                  >
+                    <Page 
+                      pageNumber={currentPage}
+                      scale={scale}
+                    />
+                  </Document>
+                </div>
+              )}
               
-              {!isLoading && !loadError && !pdfDoc && (
+              {!isLoading && !loadError && !pdfDoc && !useReactPdf && (
                 <Box display="flex" justifyContent="center" alignItems="center" height="400px">
                   <Typography>PDFが読み込まれていません</Typography>
                 </Box>
