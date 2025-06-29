@@ -1,5 +1,6 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { api } from '../services/api'
 import {
   Box,
   Typography,
@@ -140,8 +141,8 @@ const CompletedForms = () => {
     }
   ]
 
-  // サンプルデータ
-  const [completedForms] = useState<CompletedForm[]>([
+  // 実際のデータ
+  const [completedForms, setCompletedForms] = useState<CompletedForm[]>([
     {
       id: 1,
       formId: '日本人の配偶者等-認定証明書交付申請-1709280123',
@@ -206,6 +207,49 @@ const CompletedForms = () => {
       email: 'maria.tanaka@example.com',
     },
   ])
+  const [isLoading, setIsLoading] = useState(true)
+
+  // APIからデータを取得
+  useEffect(() => {
+    const fetchApplications = async () => {
+      try {
+        const result = await api.getApplications()
+        if (result.success && result.data) {
+          // APIデータをCompletedForm形式に変換
+          const formattedData = result.data.map((item: any) => ({
+            id: item.id,
+            formId: item.form_id,
+            applicantName: `${item.family_name} ${item.given_name}`,
+            applicantNameKana: `${item.family_name_kana || ''} ${item.given_name_kana || ''}`.trim(),
+            visaType: getVisaTypeLabel(item.application_type),
+            procedureType: 'ビザ申請書',
+            submittedDate: new Date(item.created_at).toLocaleDateString('ja-JP'),
+            status: item.status || 'completed',
+            nationality: item.nationality || '',
+            email: item.email || '',
+          }))
+          setCompletedForms(formattedData)
+        }
+      } catch (error) {
+        console.error('Failed to fetch applications:', error)
+      } finally {
+        setIsLoading(false)
+      }
+    }
+
+    fetchApplications()
+  }, [])
+
+  // ビザタイプのラベル変換
+  const getVisaTypeLabel = (type: string) => {
+    switch (type) {
+      case 'family-visit': return '短期滞在（親族訪問）'
+      case 'friend-visit': return '短期滞在（知人訪問）'
+      case 'tourism': return '短期滞在（観光）'
+      case 'business': return '短期滞在（商用）'
+      default: return type
+    }
+  }
 
   // 移動・削除のハンドラー
   const handleMoveClick = () => {

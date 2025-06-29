@@ -1,0 +1,13 @@
+# CORS設定を無効化（PHPで処理するため）
+Header unset Access-Control-Allow-Origin
+Header unset Access-Control-Allow-Methods
+Header unset Access-Control-Allow-Headers
+
+# PHPファイルの実行を許可
+<Files "*.php">
+    Order Allow,Deny
+    Allow from all
+</Files>
+
+# ディレクトリ一覧を無効化
+Options -Indexes
