@@ -22,7 +22,9 @@ export interface ShortStayApplication {
 export const api = {
   // 申請を作成
   createApplication: async (data: ShortStayApplication) => {
-    const response = await fetch(`${API_BASE_URL}/applications/create.php`, {
+    console.log('API sending data:', data);
+    
+    const response = await fetch(`${API_BASE_URL}/applications/create_debug.php`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -30,11 +32,19 @@ export const api = {
       body: JSON.stringify(data),
     });
     
+    const responseText = await response.text();
+    console.log('API response status:', response.status);
+    console.log('API response text:', responseText);
+    
     if (!response.ok) {
-      throw new Error('Failed to create application');
+      throw new Error(`HTTP ${response.status}: ${responseText}`);
     }
     
-    return response.json();
+    try {
+      return JSON.parse(responseText);
+    } catch (e) {
+      throw new Error(`Invalid JSON response: ${responseText}`);
+    }
   },
 
   // 申請一覧を取得

@@ -261,6 +261,10 @@ const ShortStayCustomerForm = () => {
         intendedDateOfDeparture: formData.intendedDateOfDeparture,
       }
       
+      // デバッグ用：送信データを確認
+      console.log('Sending data:', applicationData)
+      console.log('Form data:', formData)
+      
       // APIに送信
       const result = await api.createApplication(applicationData)
       

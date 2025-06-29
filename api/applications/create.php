@@ -4,11 +4,15 @@ require_once '../cors_simple.php';
 require_once '../config/database.php';
 
 // POSTデータの取得
-$data = json_decode(file_get_contents("php://input"));
+$rawData = file_get_contents("php://input");
+$data = json_decode($rawData);
+
+// デバッグ用：受信データをログに記録
+error_log("Received data: " . $rawData);
 
 if (!$data) {
     http_response_code(400);
-    echo json_encode(['error' => 'Invalid input data']);
+    echo json_encode(['error' => 'Invalid input data', 'received' => $rawData]);
     exit;
 }
 
