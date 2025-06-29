@@ -85,11 +85,12 @@ const PDFCoordinatePicker: React.FC<PDFCoordinatePickerProps> = ({
       // PDF.jsを動的インポート
       const pdfjsLib = await import('pdfjs-dist')
       
-      // Worker設定（複数のCDNを試す）
-      try {
-        pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js`
-      } catch (e) {
-        pdfjsLib.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@3.11.174/build/pdf.worker.min.js`
+      // Worker設定（バージョン5.3.31に合わせる）
+      if (!pdfjsLib.GlobalWorkerOptions.workerSrc) {
+        // 最新バージョンのWorkerを使用
+        pdfjsLib.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@5.3.31/build/pdf.worker.min.js`
+        console.log('PDF.js version:', pdfjsLib.version || '5.3.31')
+        console.log('Worker source:', pdfjsLib.GlobalWorkerOptions.workerSrc)
       }
       
       console.log('Loading PDF from:', pdfUrl)
