@@ -328,13 +328,125 @@ const CompletedForms = () => {
       const result = await api.getApplicationDetail(formId)
       if (result.success) {
         setEditFormData(result.data)
-        await fillPdfWithData(result.data)
+        await analyzePdfAndFillData(result.data)
         setEditDialog(true)
       }
     } catch (error) {
       console.error('Failed to fetch edit data:', error)
       alert('編集データの取得に失敗しました')
     }
+  }
+
+  // PDF分析と自動入力
+  const analyzePdfAndFillData = async (data: any) => {
+    try {
+      // まずPDFのフィールドを分析
+      await analyzePdfFields()
+      
+      // 次に既存の自動入力を実行
+      await fillPdfWithData(data)
+    } catch (error) {
+      console.error('Failed to analyze and fill PDF:', error)
+      // エラーの場合は元のPDFを表示
+      setFilledPdfUrl('/documents/short-stay-application-form.pdf')
+    }
+  }
+
+  // PDFフィールド分析
+  const analyzePdfFields = async () => {
+    try {
+      const { PDFDocument } = await import('pdf-lib')
+      
+      // 元のPDFを取得
+      const existingPdfBytes = await fetch('/documents/short-stay-application-form.pdf').then(res => res.arrayBuffer())
+      
+      // PDFドキュメントを読み込み
+      const pdfDoc = await PDFDocument.load(existingPdfBytes)
+      const form = pdfDoc.getForm()
+      
+      // 全フォームフィールドを取得
+      const fields = form.getFields()
+      
+      console.log('=== PDF Form Fields Analysis ===')
+      console.log(`Total fields found: ${fields.length}`)
+      
+      const fieldInfo: any[] = []
+      
+      fields.forEach((field, index) => {
+        const fieldData = {
+          index: index,
+          name: field.getName(),
+          type: field.constructor.name,
+        }
+        
+        // フィールドタイプ別の詳細情報
+        try {
+          if (field.constructor.name === 'PDFTextField') {
+            fieldData.defaultValue = field.getText ? field.getText() : ''
+          } else if (field.constructor.name === 'PDFCheckBox') {
+            fieldData.isChecked = field.isChecked ? field.isChecked() : false
+          }
+        } catch (e) {
+          // フィールドアクセスエラーを無視
+        }
+        
+        fieldInfo.push(fieldData)
+        
+        console.log(`\nField ${index + 1}:`)
+        console.log(`  Name: "${fieldData.name}"`)
+        console.log(`  Type: ${fieldData.type}`)
+      })
+      
+      // フィールドマッピングを提案
+      suggestFieldMapping(fieldInfo)
+      
+      return fieldInfo
+      
+    } catch (error) {
+      console.error('PDF analysis failed:', error)
+      return []
+    }
+  }
+
+  // フィールドマッピング提案
+  const suggestFieldMapping = (fieldInfo: any[]) => {
+    const mapping: any = {}
+    
+    // よくあるフィールド名パターン
+    const patterns = {
+      'family_name': ['family', 'surname', 'last', '姓', 'sei'],
+      'given_name': ['given', 'first', 'name', '名', 'mei'],
+      'family_name_kana': ['family.*kana', 'surname.*kana', '姓.*カナ'],
+      'given_name_kana': ['given.*kana', 'first.*kana', '名.*カナ'],
+      'gender': ['gender', 'sex', '性別'],
+      'date_of_birth': ['birth', 'dob', '生年月日'],
+      'nationality': ['nationality', 'country', '国籍'],
+      'passport_number': ['passport', 'パスポート'],
+      'email': ['email', 'mail', 'メール'],
+      'phone_number': ['phone', 'tel', '電話'],
+      'purpose_of_visit': ['purpose', '目的'],
+      'intended_arrival_date': ['arrival', '入国'],
+      'intended_departure_date': ['departure', '出国']
+    }
+    
+    fieldInfo.forEach(field => {
+      const fieldName = field.name.toLowerCase()
+      
+      for (const [dataKey, patternList] of Object.entries(patterns)) {
+        if (patternList.some(pattern => {
+          const regex = new RegExp(pattern, 'i')
+          return regex.test(fieldName)
+        })) {
+          mapping[field.name] = dataKey
+          break
+        }
+      }
+    })
+    
+    console.log('\n=== Suggested Field Mapping ===')
+    console.log(mapping)
+    
+    return mapping
   }
 
   // PDFに自動入力する関数
