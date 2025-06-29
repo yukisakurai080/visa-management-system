@@ -1,5 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react'
 import { Document, Page } from 'react-pdf'
+import 'react-pdf/dist/Page/AnnotationLayer.css'
+import 'react-pdf/dist/Page/TextLayer.css'
 import {
   Dialog,
   DialogTitle,
@@ -49,7 +51,7 @@ const PDFCoordinatePicker: React.FC<PDFCoordinatePickerProps> = ({
   const [scale, setScale] = useState(1.5)
   const [isLoading, setIsLoading] = useState(false)
   const [loadError, setLoadError] = useState<string>('')
-  const [useReactPdf, setUseReactPdf] = useState(false)
+  const [useReactPdf, setUseReactPdf] = useState(true)
   const [numPages, setNumPages] = useState<number>(0)
 
   const dataFields = [
@@ -69,8 +71,26 @@ const PDFCoordinatePicker: React.FC<PDFCoordinatePickerProps> = ({
   ]
 
   useEffect(() => {
-    if (open && pdfUrl && !useReactPdf) {
-      loadPDF()
+    // React-PDFのWorker設定
+    const setupReactPdfWorker = async () => {
+      try {
+        const { pdfjs } = await import('react-pdf')
+        pdfjs.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.js`
+        console.log('React-PDF Worker configured:', pdfjs.GlobalWorkerOptions.workerSrc)
+      } catch (error) {
+        console.error('React-PDF Worker setup failed:', error)
+      }
+    }
+    
+    if (open && pdfUrl) {
+      setupReactPdfWorker()
+      
+      if (!useReactPdf) {
+        loadPDF()
+      } else {
+        setIsLoading(true)
+        console.log('Using React-PDF for rendering')
+      }
     }
   }, [open, pdfUrl, useReactPdf])
 
@@ -88,24 +108,9 @@ const PDFCoordinatePicker: React.FC<PDFCoordinatePickerProps> = ({
       // PDF.jsを動的インポート
       const pdfjsLib = await import('pdfjs-dist')
       
-      // Worker設定（複数の方法を試行）
-      if (!pdfjsLib.GlobalWorkerOptions.workerSrc) {
-        try {
-          // 方法1: JSDelivr CDN
-          pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdn.jsdelivr.net/npm/pdfjs-dist@5.3.31/build/pdf.worker.min.js`
-          console.log('Worker source (JSDelivr):', pdfjsLib.GlobalWorkerOptions.workerSrc)
-        } catch (e) {
-          try {
-            // 方法2: CDNJSから取得
-            pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.0.379/pdf.worker.min.js`
-            console.log('Worker source (CDNJS):', pdfjsLib.GlobalWorkerOptions.workerSrc)
-          } catch (e2) {
-            // 方法3: Workerを無効にして軽量モードで動作
-            console.warn('Worker loading failed, using main thread')
-            pdfjsLib.GlobalWorkerOptions.workerSrc = ''
-          }
-        }
-      }
+      // Worker設定をスキップして、直接React-PDFを使用
+      console.log('Skipping PDF.js worker setup, using React-PDF directly')
+      throw new Error('PDF.js worker issues, switching to React-PDF')
       
       console.log('Loading PDF from:', pdfUrl)
       
