@@ -75,8 +75,17 @@ const PDFCoordinatePicker: React.FC<PDFCoordinatePickerProps> = ({
     const setupReactPdfWorker = async () => {
       try {
         const { pdfjs } = await import('react-pdf')
-        pdfjs.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.js`
+        
+        // 複数のWorker URLを試行
+        const workerUrls = [
+          `https://unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.js`,
+          `https://cdn.jsdelivr.net/npm/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.js`,
+          `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.worker.min.js`
+        ]
+        
+        pdfjs.GlobalWorkerOptions.workerSrc = workerUrls[0]
         console.log('React-PDF Worker configured:', pdfjs.GlobalWorkerOptions.workerSrc)
+        console.log('PDF.js version:', pdfjs.version)
       } catch (error) {
         console.error('React-PDF Worker setup failed:', error)
       }
@@ -90,6 +99,16 @@ const PDFCoordinatePicker: React.FC<PDFCoordinatePickerProps> = ({
       } else {
         setIsLoading(true)
         console.log('Using React-PDF for rendering')
+        console.log('PDF URL:', pdfUrl)
+        
+        // タイムアウト処理（30秒後にエラー表示）
+        setTimeout(() => {
+          if (isLoading) {
+            console.warn('PDF loading timeout after 30 seconds')
+            setLoadError('PDF読み込みがタイムアウトしました（30秒）')
+            setIsLoading(false)
+          }
+        }, 30000)
       }
     }
   }, [open, pdfUrl, useReactPdf])
@@ -149,8 +168,18 @@ const PDFCoordinatePicker: React.FC<PDFCoordinatePickerProps> = ({
 
   const onDocumentLoadError = (error: any) => {
     console.error('React-PDF loading failed:', error)
-    setLoadError(`React-PDF読み込みエラー: ${error.message}`)
+    setLoadError(`React-PDF読み込みエラー: ${error?.message || 'Unknown error'}`)
     setIsLoading(false)
+  }
+
+  // ページ読み込み成功
+  const onPageLoadSuccess = () => {
+    console.log('Page loaded successfully')
+  }
+
+  // ページ読み込みエラー
+  const onPageLoadError = (error: any) => {
+    console.error('Page loading failed:', error)
   }
 
   const renderPage = async (pdf: any, pageNum: number) => {
@@ -356,11 +385,23 @@ const fillPdfWithCoordinates = async (data, pdfBytes) => {
                     file={pdfUrl}
                     onLoadSuccess={onDocumentLoadSuccess}
                     onLoadError={onDocumentLoadError}
-                    loading={<div>React-PDF読み込み中...</div>}
+                    loading={<div style={{ padding: '20px', textAlign: 'center' }}>React-PDF読み込み中...</div>}
+                    error={<div style={{ padding: '20px', textAlign: 'center', color: 'red' }}>PDF読み込みに失敗しました</div>}
+                    noData={<div style={{ padding: '20px', textAlign: 'center' }}>PDFデータがありません</div>}
+                    options={{
+                      cMapUrl: 'https://unpkg.com/pdfjs-dist@3.4.120/cmaps/',
+                      cMapPacked: true,
+                      standardFontDataUrl: 'https://unpkg.com/pdfjs-dist@3.4.120/standard_fonts/',
+                    }}
                   >
                     <Page 
                       pageNumber={currentPage}
                       scale={scale}
+                      onLoadSuccess={onPageLoadSuccess}
+                      onLoadError={onPageLoadError}
+                      loading={<div style={{ padding: '20px', textAlign: 'center' }}>ページ読み込み中...</div>}
+                      error={<div style={{ padding: '20px', textAlign: 'center', color: 'red' }}>ページ読み込み失敗</div>}
+                      noData={<div style={{ padding: '20px', textAlign: 'center' }}>ページデータがありません</div>}
                     />
                   </Document>
                 </div>
@@ -369,6 +410,25 @@ const fillPdfWithCoordinates = async (data, pdfBytes) => {
               {!isLoading && !loadError && !pdfDoc && !useReactPdf && (
                 <Box display="flex" justifyContent="center" alignItems="center" height="400px">
                   <Typography>PDFが読み込まれていません</Typography>
+                </Box>
+              )}
+
+              {/* iframe fallback */}
+              {loadError && (
+                <Box sx={{ mt: 2 }}>
+                  <Typography variant="subtitle2" gutterBottom>
+                    iframe表示（フォールバック）:
+                  </Typography>
+                  <iframe
+                    src={pdfUrl}
+                    width="100%"
+                    height="500px"
+                    style={{ border: '1px solid #ddd' }}
+                    title="PDF Fallback"
+                  />
+                  <Typography variant="caption" color="text.secondary">
+                    ※ iframe表示では座標取得機能は使用できません
+                  </Typography>
                 </Box>
               )}
             </Paper>
