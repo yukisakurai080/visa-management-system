@@ -98,6 +98,7 @@ const CompletedForms = () => {
   const [selectedFormDetail, setSelectedFormDetail] = useState<any>(null)
   const [editDialog, setEditDialog] = useState(false)
   const [editFormData, setEditFormData] = useState<any>(null)
+  const [filledPdfUrl, setFilledPdfUrl] = useState<string>('')
 
   // 手続き・カテゴリのマスターデータ
   const procedureTypes: ProcedureType[] = [
@@ -327,6 +328,7 @@ const CompletedForms = () => {
       const result = await api.getApplicationDetail(formId)
       if (result.success) {
         setEditFormData(result.data)
+        await fillPdfWithData(result.data)
         setEditDialog(true)
       }
     } catch (error) {
@@ -335,9 +337,101 @@ const CompletedForms = () => {
     }
   }
 
+  // PDFに自動入力する関数
+  const fillPdfWithData = async (data: any) => {
+    try {
+      // PDF-libを動的インポート
+      const { PDFDocument, rgb } = await import('pdf-lib')
+      
+      // 元のPDFを取得
+      const existingPdfBytes = await fetch('/documents/short-stay-application-form.pdf').then(res => res.arrayBuffer())
+      
+      // PDFドキュメントを読み込み
+      const pdfDoc = await PDFDocument.load(existingPdfBytes)
+      const form = pdfDoc.getForm()
+      
+      // フォームフィールドに値を設定
+      try {
+        // 基本情報
+        if (data.family_name) {
+          const familyNameField = form.getTextField('family_name')
+          familyNameField.setText(data.family_name)
+        }
+        if (data.given_name) {
+          const givenNameField = form.getTextField('given_name')
+          givenNameField.setText(data.given_name)
+        }
+        if (data.family_name_kana) {
+          const familyNameKanaField = form.getTextField('family_name_kana')
+          familyNameKanaField.setText(data.family_name_kana)
+        }
+        if (data.given_name_kana) {
+          const givenNameKanaField = form.getTextField('given_name_kana')
+          givenNameKanaField.setText(data.given_name_kana)
+        }
+        if (data.gender) {
+          const genderField = form.getTextField('gender')
+          genderField.setText(data.gender)
+        }
+        if (data.date_of_birth) {
+          const dobField = form.getTextField('date_of_birth')
+          dobField.setText(data.date_of_birth)
+        }
+        if (data.nationality) {
+          const nationalityField = form.getTextField('nationality')
+          nationalityField.setText(data.nationality)
+        }
+        if (data.passport_number) {
+          const passportField = form.getTextField('passport_number')
+          passportField.setText(data.passport_number)
+        }
+        if (data.email) {
+          const emailField = form.getTextField('email')
+          emailField.setText(data.email)
+        }
+        if (data.phone_number) {
+          const phoneField = form.getTextField('phone_number')
+          phoneField.setText(data.phone_number)
+        }
+        if (data.purpose_of_visit) {
+          const purposeField = form.getTextField('purpose_of_visit')
+          purposeField.setText(data.purpose_of_visit)
+        }
+        if (data.intended_arrival_date) {
+          const arrivalField = form.getTextField('intended_arrival_date')
+          arrivalField.setText(data.intended_arrival_date)
+        }
+        if (data.intended_departure_date) {
+          const departureField = form.getTextField('intended_departure_date')
+          departureField.setText(data.intended_departure_date)
+        }
+      } catch (fieldError) {
+        console.log('Some form fields not found, continuing with available fields:', fieldError)
+      }
+      
+      // PDFを保存
+      const pdfBytes = await pdfDoc.save()
+      
+      // BlobからURLを作成
+      const blob = new Blob([pdfBytes], { type: 'application/pdf' })
+      const url = URL.createObjectURL(blob)
+      setFilledPdfUrl(url)
+      
+    } catch (error) {
+      console.error('Failed to fill PDF:', error)
+      // エラーの場合は元のPDFを表示
+      setFilledPdfUrl('/documents/short-stay-application-form.pdf')
+    }
+  }
+
   const handleEditClose = () => {
     setEditDialog(false)
     setEditFormData(null)
+    // PDFのURLをクリーンアップ
+    if (filledPdfUrl && filledPdfUrl.startsWith('blob:')) {
+      URL.revokeObjectURL(filledPdfUrl)
+    }
+    setFilledPdfUrl('')
   }
 
   const handleFormDataUpdate = (field: string, value: string) => {
@@ -345,6 +439,11 @@ const CompletedForms = () => {
       ...prev,
       [field]: value
     }))
+    // フォームデータが更新されたらPDFも再生成
+    if (editFormData) {
+      const updatedData = { ...editFormData, [field]: value }
+      fillPdfWithData(updatedData)
+    }
   }
 
   const handleSaveEdit = async () => {
@@ -1005,9 +1104,18 @@ const CompletedForms = () => {
               <Grid item xs={12} md={6}>
                 <Card>
                   <CardContent>
-                    <Typography variant="h6" gutterBottom color="primary">
-                      申請書テンプレート（PDF）
-                    </Typography>
+                    <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
+                      <Typography variant="h6" color="primary">
+                        申請書テンプレート（PDF）
+                      </Typography>
+                      <Button 
+                        variant="outlined" 
+                        size="small"
+                        onClick={() => fillPdfWithData(editFormData)}
+                      >
+                        PDF更新
+                      </Button>
+                    </Box>
                     <Box 
                       sx={{ 
                         width: '100%', 
@@ -1018,7 +1126,7 @@ const CompletedForms = () => {
                       }}
                     >
                       <iframe
-                        src="/documents/short-stay-application-form.pdf"
+                        src={filledPdfUrl || "/documents/short-stay-application-form.pdf"}
                         width="100%"
                         height="100%"
                         style={{ border: 'none' }}
@@ -1199,8 +1307,11 @@ const CompletedForms = () => {
                     </Box>
 
                     <Alert severity="info" sx={{ mt: 2 }}>
-                      左のPDFと照らし合わせながら、必要な項目を編集してください。
-                      変更内容は「保存」ボタンを押すまで確定されません。
+                      <strong>申請書自動入力機能：</strong><br />
+                      • 左のPDFには申請者の情報が自動で入力されています<br />
+                      • フォームを編集すると、PDFもリアルタイムで更新されます<br />
+                      • 各申請者ごとに個別のPDFが生成されます<br />
+                      • 変更内容は「保存」ボタンを押すまで確定されません
                     </Alert>
                   </CardContent>
                 </Card>
