@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useParams } from 'react-router-dom'
+import { api } from '../services/api'
 import {
   Box,
   Button,
@@ -25,6 +26,7 @@ import {
   Collapse,
   Alert,
   LinearProgress,
+  CircularProgress,
 } from '@mui/material'
 import {
   CheckCircle as CheckCircleIcon,
@@ -234,9 +236,46 @@ const ShortStayCustomerForm = () => {
     setActiveStep(prev => prev - 1)
   }
 
-  const handleSubmit = () => {
-    console.log('Short stay visa application submitted:', formData)
-    alert('短期滞在ビザ申請書の入力が完了しました。ありがとうございます。')
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  
+  const handleSubmit = async () => {
+    setIsSubmitting(true)
+    
+    try {
+      // APIに送信するデータを準備
+      const applicationData = {
+        formId: formId || '',
+        applicationType: type || '',
+        familyName: formData.familyName,
+        givenName: formData.givenName,
+        familyNameKatakana: formData.familyNameKatakana,
+        givenNameKatakana: formData.givenNameKatakana,
+        gender: formData.gender,
+        dateOfBirth: formData.dateOfBirth,
+        nationality: formData.nationality,
+        passportNumber: formData.passportNumber,
+        email: formData.email,
+        phoneNumber: formData.phoneNumber,
+        purposeOfVisit: formData.purposeOfVisit,
+        intendedDateOfArrival: formData.intendedDateOfArrival,
+        intendedDateOfDeparture: formData.intendedDateOfDeparture,
+      }
+      
+      // APIに送信
+      const result = await api.createApplication(applicationData)
+      
+      if (result.success) {
+        alert('短期滞在ビザ申請書の入力が完了しました。ありがとうございます。')
+        // 成功ページへリダイレクトなど
+      } else {
+        throw new Error(result.error || 'Failed to submit application')
+      }
+    } catch (error) {
+      console.error('Error submitting application:', error)
+      alert('申請の送信中にエラーが発生しました。もう一度お試しください。')
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   const progress = ((activeStep + 1) / steps.length) * 100
@@ -996,8 +1035,9 @@ const ShortStayCustomerForm = () => {
                     onClick={handleSubmit}
                     size="large"
                     startIcon={<CheckCircleIcon />}
+                    disabled={isSubmitting}
                   >
-                    申請書提出
+                    {isSubmitting ? '送信中...' : '申請書提出'}
                   </Button>
                 </Box>
               </Box>
